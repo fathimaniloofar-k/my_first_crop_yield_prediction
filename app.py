@@ -1,51 +1,266 @@
-import pandas as pd
+
 import streamlit as st
+import pandas as pd
+import joblib
+import os
 
-# 1. Build the visual website headers
-st.title("🌾 Agricultural Crop Yield Predictor")
-st.write(
-    "Adjust the environmental conditions below to estimate the crop yield."
+# ----------------------------------------
+# 1. WEBSITE CONFIGURATION
+# ----------------------------------------
+
+st.set_page_config(
+    page_title="Crop Yield Predictor",
+    page_icon="🌾",
+    layout="wide"
 )
 
-st.markdown("---")
+# ----------------------------------------
+# 2. LOAD DATASET
+# ----------------------------------------
 
-# 2. Create interactive sliders for the user
-st.header("🛠️ Environmental Inputs")
+@st.cache_data
+def load_dataset():
 
-rainfall = st.slider("Rainfall (mm)", min_value=0, max_value=2000, value=500)
-temperature = st.slider(
-    "Temperature (Celsius)", min_value=0, max_value=50, value=25
-)
-days_to_harvest = st.slider(
-    "Days to Harvest", min_value=30, max_value=365, value=120
-)
+    df = pd.read_csv("crop_yield.csv")
 
-fertilizer_input = st.toggle("Was Fertilizer Used?")
-irrigation_input = st.toggle("Was Irrigation Used?")
+    return df
 
-fertilizer = 1.0 if fertilizer_input else 0.0
-irrigation = 1.0 if irrigation_input else 0.0
 
-st.markdown("---")
+# ----------------------------------------
+# 3. LOAD TRAINED MODEL
+# ----------------------------------------
 
-# 3. Use the winning Linear Regression formula directly from your metrics table
-if st.button("🔮 Calculate Estimated Yield"):
-    # Baseline equation calculated from your exact optimized coefficients
-    # Yield baseline centered around your 4-6 tons/ha average distribution
-    base_yield = 1.25
-    rainfall_effect = rainfall * 0.0035
-    temp_effect = temperature * 0.012
-    harvest_effect = days_to_harvest * 0.002
-    fert_effect = fertilizer * 0.85
-    irrig_effect = irrigation * 0.65
+@st.cache_resource
+def load_model():
 
-    prediction = (
-        base_yield
-        + rainfall_effect
-        + temp_effect
-        + harvest_effect
-        + fert_effect
-        + irrig_effect
+    model = joblib.load("crop_yield_model.pkl")
+
+    return model
+
+
+# Load dataset and model
+try:
+
+    df = load_dataset()
+
+    model = load_model()
+
+except FileNotFoundError:
+
+    st.error(
+        "Dataset or trained model file not found. "
+        "Please check your project folder."
     )
 
-    st.success(f"### 🎉 Estimated Yield: {prediction:.2f} tons per hectare")
+    st.stop()
+
+
+# ----------------------------------------
+# 4. WEBSITE HEADER
+# ----------------------------------------
+
+st.title("🌾 Agricultural Crop Yield Predictor")
+
+st.write(
+    "Predict crop yield using environmental conditions "
+    "and a trained Machine Learning model."
+)
+
+st.markdown("---")
+
+
+# ----------------------------------------
+# 5. SIDEBAR
+# ----------------------------------------
+
+st.sidebar.header("About Project")
+
+st.sidebar.write(
+    "This application predicts agricultural crop yield "
+    "using Linear Regression."
+)
+
+st.sidebar.info(
+    "Machine Learning Project"
+)
+
+
+# ----------------------------------------
+# 6. INPUT SECTION
+# ----------------------------------------
+
+st.header("🛠️ Environmental Inputs")
+
+col1, col2 = st.columns(2)
+
+
+# ----------------------------------------
+# 7. CATEGORICAL INPUTS
+# ----------------------------------------
+
+with col1:
+
+    st.subheader("Crop Information")
+
+    region = st.selectbox(
+        "Region",
+        sorted(df["Region"].dropna().unique())
+    )
+
+    soil_type = st.selectbox(
+        "Soil Type",
+        sorted(df["Soil_Type"].dropna().unique())
+    )
+
+    crop = st.selectbox(
+        "Crop",
+        sorted(df["Crop"].dropna().unique())
+    )
+
+    weather = st.selectbox(
+        "Weather Condition",
+        sorted(df["Weather_Condition"].dropna().unique())
+    )
+
+
+# ----------------------------------------
+# 8. NUMERICAL INPUTS
+# ----------------------------------------
+
+with col2:
+
+    st.subheader("Environmental Conditions")
+
+    rainfall = st.slider(
+        "Rainfall (mm)",
+        min_value=0.0,
+        max_value=2000.0,
+        value=500.0
+    )
+
+    temperature = st.slider(
+        "Temperature (Celsius)",
+        min_value=0.0,
+        max_value=50.0,
+        value=25.0
+    )
+
+    days_to_harvest = st.slider(
+        "Days to Harvest",
+        min_value=30,
+        max_value=365,
+        value=120
+    )
+
+
+# ----------------------------------------
+# 9. FERTILIZER AND IRRIGATION
+# ----------------------------------------
+
+st.markdown("---")
+
+st.subheader("🌱 Farming Practices")
+
+col3, col4 = st.columns(2)
+
+with col3:
+
+    fertilizer = st.toggle(
+        "Fertilizer Used",
+        value=False
+    )
+
+with col4:
+
+    irrigation = st.toggle(
+        "Irrigation Used",
+        value=False
+    )
+
+
+# ----------------------------------------
+# 10. PREDICTION BUTTON
+# ----------------------------------------
+
+st.markdown("---")
+
+if st.button(
+    "🔮 Predict Crop Yield",
+    use_container_width=True
+):
+
+    # Create input dataframe
+    input_data = pd.DataFrame({
+
+        "Region": [region],
+
+        "Soil_Type": [soil_type],
+
+        "Crop": [crop],
+
+        "Rainfall_mm": [rainfall],
+
+        "Temperature_Celsius": [temperature],
+
+        "Fertilizer_Used": [fertilizer],
+
+        "Irrigation_Used": [irrigation],
+
+        "Weather_Condition": [weather],
+
+        "Days_to_Harvest": [days_to_harvest]
+
+    })
+
+
+    # ----------------------------------------
+    # 11. PREDICT USING TRAINED MODEL
+    # ----------------------------------------
+
+    try:
+
+        prediction = model.predict(input_data)
+
+        predicted_yield = prediction[0]
+
+
+        # ----------------------------------------
+        # 12. DISPLAY RESULT
+        # ----------------------------------------
+
+        st.success("Prediction Completed Successfully!")
+
+        st.metric(
+            label="Estimated Crop Yield",
+            value=f"{predicted_yield:.2f} tons/hectare"
+        )
+
+        st.write(
+            f"Selected Crop: **{crop}**"
+        )
+
+        st.write(
+            f"Selected Region: **{region}**"
+        )
+
+
+        # ----------------------------------------
+        # 13. DISPLAY INPUT SUMMARY
+        # ----------------------------------------
+
+        with st.expander("View Input Details"):
+
+            st.dataframe(
+                input_data,
+                use_container_width=True
+            )
+
+
+    except Exception as e:
+
+        st.error(
+            "Prediction failed. Please check whether "
+            "the input columns match your trained model."
+        )
+
+        st.write(str(e))
