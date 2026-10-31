@@ -21,7 +21,7 @@ st.set_page_config(
 @st.cache_data
 def load_dataset():
 
-    df = pd.read_csv("crop_yield.csv")
+    df = pd.read_csv("crop_yield_dataset.csv")
 
     return df
 
